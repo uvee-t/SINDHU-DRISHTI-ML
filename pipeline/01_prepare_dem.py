@@ -35,7 +35,7 @@ def find_boundary_file():
 def main():
     print("=== STEP 1: Prepare DEM ===")
 
-    # Find all DEM tiles (/pipeline/data/raw/dem/*.hgt)
+    # Find all DEM tiles (/pipeline/data/raw/dem/*.hgt) Just saare file ko put kro automatically merge karne ke liye import hoga
     tile_paths = glob.glob(os.path.join(config.DEM_RAW_DIR, "*.hgt"))
     if not tile_paths:
         raise FileNotFoundError(f"No .hgt tiles found in {config.DEM_RAW_DIR}")
