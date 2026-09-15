@@ -49,7 +49,7 @@ def main():
     print(f"Using population raster: {population_path}")
     print(f"Using village file: {villages_path}")
 
-    # Clip population to district boundary ----
+    # Clip population to district boundary
     boundary = gpd.read_file(find_boundary_file())
 
     with rasterio.open(population_path) as src:
@@ -100,7 +100,7 @@ def main():
         f"Aligned population raster saved (native ~100m resolution): {config.POPULATION_UTM_PATH}"
     )
 
-    # ---- Load villages, filter to district, reproject ----
+    # Load villages, filter to district, reproject
     villages = gpd.read_file(villages_path)
     print(f"Available columns in village file: {villages.columns.tolist()}")
 
@@ -121,7 +121,7 @@ def main():
 
     district_villages_utm = district_villages.to_crs(config.UTM_EPSG)
 
-    # ---- Zonal statistics: sum population within each village polygon ----
+    # Zonal statistics: sum population within each village polygon
     stats = zonal_stats(
         district_villages_utm, config.POPULATION_UTM_PATH, stats=["sum"], nodata=-99999
     )
