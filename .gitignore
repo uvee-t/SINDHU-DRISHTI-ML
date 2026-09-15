@@ -1,0 +1,41 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ML / project data
+/pipeline/data/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Environment variables / secrets
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Model files (optional - uncomment if you don't want models in Git)
+# *.pkl
+# *.joblib
+# *.h5
+# *.pt
+# *.pth
+
+# Python build files
+build/
+dist/
+*.egg-info/
