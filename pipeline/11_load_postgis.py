@@ -17,9 +17,9 @@ matching the settings in config.py.
 
 import os
 import subprocess
-import geopandas as gpd
 
 import config
+import geopandas as gpd
 
 
 def ensure_wgs84(geojson_path):
@@ -33,7 +33,9 @@ def ensure_wgs84(geojson_path):
     if gdf.crs is not None and str(gdf.crs).upper() in ("EPSG:4326", "EPSG:4326 "):
         return geojson_path
 
-    print(f"  Reprojecting {os.path.basename(geojson_path)} from {gdf.crs} to EPSG:4326...")
+    print(
+        f"  Reprojecting {os.path.basename(geojson_path)} from {gdf.crs} to EPSG:4326..."
+    )
     gdf_wgs84 = gdf.to_crs(config.WGS84_EPSG)
 
     base, ext = os.path.splitext(geojson_path)
@@ -48,13 +50,20 @@ def load_table(geojson_path, table_name):
         f"user={config.DB_USER} password={config.DB_PASSWORD} port={config.DB_PORT}"
     )
 
-    result = subprocess.run([
-        "ogr2ogr", "-f", "PostgreSQL",
-        pg_connection,
-        geojson_path,
-        "-nln", table_name,
-        "-overwrite"
-    ], capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            "ogr2ogr",
+            "-f",
+            "PostgreSQL",
+            pg_connection,
+            geojson_path,
+            "-nln",
+            table_name,
+            "-overwrite",
+        ],
+        capture_output=True,
+        text=True,
+    )
 
     if result.returncode != 0:
         print(f"  ERROR loading {table_name}:")
@@ -72,7 +81,8 @@ def get_table_count(table_name):
     )
     result = subprocess.run(
         ["ogrinfo", "-al", "-so", pg_connection, table_name],
-        capture_output=True, text=True
+        capture_output=True,
+        text=True,
     )
     for line in result.stdout.splitlines():
         if "Feature Count" in line:
@@ -90,8 +100,10 @@ def main():
         geojson_path = getattr(config, config_key)
 
         if not os.path.exists(geojson_path):
-            print(f"\nSKIPPED '{table_name}': {geojson_path} does not exist yet "
-                  f"(run the earlier pipeline step that generates it first).")
+            print(
+                f"\nSKIPPED '{table_name}': {geojson_path} does not exist yet "
+                f"(run the earlier pipeline step that generates it first)."
+            )
             any_failed = True
             continue
 

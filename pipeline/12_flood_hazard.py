@@ -16,26 +16,30 @@ from HAND literature rather than a trained model.
 
 import os
 import subprocess
-import numpy as np
-import rasterio
-from rasterio.features import shapes
-import geopandas as gpd
-import whitebox
 
 import config
+import geopandas as gpd
+import numpy as np
+import rasterio
+import whitebox
+from rasterio.features import shapes
 
 
 def main():
     print("=== STEP 12: Flood Hazard (HAND) ===")
 
-    for path in [config.DEM_MERGED_FILLED_PATH, config.FLOW_ACCUM_FULL_PATH, config.DEM_CLIPPED_UTM]:
+    for path in [
+        config.DEM_MERGED_FILLED_PATH,
+        config.FLOW_ACCUM_FULL_PATH,
+        config.DEM_CLIPPED_UTM,
+    ]:
         if not os.path.exists(path):
             raise FileNotFoundError(
                 f"Missing required file: {path}. Run 01_prepare_dem.py and "
                 "01b_prepare_stream_distance.py first (this step reuses their output)."
             )
 
-    # ---- Rebuild the stream raster from the already-computed flow accumulation ----
+    # Rebuild the stream raster from the already-computed flow accumulation
     # (cheap — just a threshold, not a recomputation of flow accumulation itself)
     with rasterio.open(config.FLOW_ACCUM_FULL_PATH) as src:
         flow_accum = src.read(1).astype("float64")
@@ -55,7 +59,7 @@ def main():
     with rasterio.open(stream_raster_path, "w", **stream_profile) as dst:
         dst.write(stream_mask, 1)
 
-    # ---- Compute HAND via WhiteboxTools ----
+    # Compute HAND via WhiteboxTools
     wbt = whitebox.WhiteboxTools()
     wbt.verbose = False
     wbt.work_dir = config.PROCESSED_DIR
@@ -64,30 +68,43 @@ def main():
 
     print("Computing HAND (elevation above nearest stream)...")
     wbt.elevation_above_stream(
-        config.DEM_MERGED_FILLED_PATH,
-        stream_raster_path,
-        config.HAND_FULL_PATH
+        config.DEM_MERGED_FILLED_PATH, stream_raster_path, config.HAND_FULL_PATH
     )
     os.chdir(_original_cwd)
 
     with rasterio.open(config.HAND_FULL_PATH) as src:
         hand_data = src.read(1)
-        print(f"HAND (full extent) min/max: {np.nanmin(hand_data):.1f} / {np.nanmax(hand_data):.1f} m")
+        print(
+            f"HAND (full extent) min/max: {np.nanmin(hand_data):.1f} / {np.nanmax(hand_data):.1f} m"
+        )
 
-    # ---- Crop to district grid (same -te/-ts pattern used throughout this pipeline) ----
+    # Crop to district grid (same -te/-ts pattern used throughout this pipeline)
     with rasterio.open(config.DEM_CLIPPED_UTM) as src:
         target_bounds = src.bounds
         target_width = src.width
         target_height = src.height
 
-    subprocess.run([
-        "gdalwarp", "-t_srs", config.UTM_EPSG,
-        "-te", str(target_bounds.left), str(target_bounds.bottom),
-               str(target_bounds.right), str(target_bounds.top),
-        "-ts", str(target_width), str(target_height),
-        "-r", "bilinear", "-overwrite",
-        config.HAND_FULL_PATH, config.HAND_CLIPPED_PATH
-    ], check=True)
+    subprocess.run(
+        [
+            "gdalwarp",
+            "-t_srs",
+            config.UTM_EPSG,
+            "-te",
+            str(target_bounds.left),
+            str(target_bounds.bottom),
+            str(target_bounds.right),
+            str(target_bounds.top),
+            "-ts",
+            str(target_width),
+            str(target_height),
+            "-r",
+            "bilinear",
+            "-overwrite",
+            config.HAND_FULL_PATH,
+            config.HAND_CLIPPED_PATH,
+        ],
+        check=True,
+    )
 
     with rasterio.open(config.HAND_CLIPPED_PATH) as src:
         hand = src.read(1).astype("float64")
@@ -99,33 +116,42 @@ def main():
 
     print(f"HAND (district) min/max: {np.nanmin(hand):.1f} / {np.nanmax(hand):.1f} m")
 
-    # ---- Classify flood risk ----
+    # Classify flood risk
     valid_mask = ~np.isnan(hand)
     zone_raster = np.full(hand.shape, 255, dtype="uint8")
-    zone_raster[valid_mask & (hand <= config.HAND_HIGH_RISK_MAX_M)] = 2       # high risk
-    zone_raster[valid_mask & (hand > config.HAND_HIGH_RISK_MAX_M) &
-                (hand <= config.HAND_MODERATE_RISK_MAX_M)] = 1               # moderate
-    zone_raster[valid_mask & (hand > config.HAND_MODERATE_RISK_MAX_M)] = 0   # low risk
+    zone_raster[valid_mask & (hand <= config.HAND_HIGH_RISK_MAX_M)] = 2  # high risk
+    zone_raster[
+        valid_mask
+        & (hand > config.HAND_HIGH_RISK_MAX_M)
+        & (hand <= config.HAND_MODERATE_RISK_MAX_M)
+    ] = 1  # moderate
+    zone_raster[valid_mask & (hand > config.HAND_MODERATE_RISK_MAX_M)] = 0  # low risk
 
     high = (zone_raster == 2).sum()
     moderate = (zone_raster == 1).sum()
     low = (zone_raster == 0).sum()
     total = high + moderate + low
-    print(f"High flood risk: {high} ({100*high/total:.1f}%)  "
-          f"Moderate: {moderate} ({100*moderate/total:.1f}%)  "
-          f"Low: {low} ({100*low/total:.1f}%)")
+    print(
+        f"High flood risk: {high} ({100 * high / total:.1f}%)  "
+        f"Moderate: {moderate} ({100 * moderate / total:.1f}%)  "
+        f"Low: {low} ({100 * low / total:.1f}%)"
+    )
 
-    # ---- Vectorize, clean, dissolve (same pattern as 06_generate_redzone_map.py) ----
+    # Vectorize, clean, dissolve (same pattern as 06_generate_redzone_map.py)
     results = (
         {"properties": {"flood_zone_class": int(v)}, "geometry": s}
-        for s, v in shapes(zone_raster, mask=(zone_raster != 255), transform=profile["transform"])
+        for s, v in shapes(
+            zone_raster, mask=(zone_raster != 255), transform=profile["transform"]
+        )
     )
     gdf = gpd.GeoDataFrame.from_features(list(results), crs=profile["crs"])
     print(f"Raw vectorized polygons: {len(gdf)}")
 
     gdf["area_sqm"] = gdf.geometry.area
     gdf_filtered = gdf[gdf["area_sqm"] >= config.MIN_POLYGON_AREA_SQM].copy()
-    gdf_filtered["geometry"] = gdf_filtered.geometry.simplify(config.SIMPLIFY_TOLERANCE, preserve_topology=True)
+    gdf_filtered["geometry"] = gdf_filtered.geometry.simplify(
+        config.SIMPLIFY_TOLERANCE, preserve_topology=True
+    )
 
     dissolved = gdf_filtered.dissolve(by="flood_zone_class", as_index=False)
     exploded = dissolved.explode(index_parts=False).reset_index(drop=True)
